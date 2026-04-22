@@ -7,7 +7,7 @@ st.set_page_config(page_title="Uitjes Finder", layout="wide")
 st.title("🎯 Uitjes in je Omgeving")
 
 # Laad activiteiten data
-with open('data/activities.json', 'r', encoding='utf-8') as f:
+with open('activities.json', 'r', encoding='utf-8') as f:
     activities = json.load(f)
 
 # Gebruiker voert locatie in
