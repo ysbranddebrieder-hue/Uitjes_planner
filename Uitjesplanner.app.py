@@ -1,61 +1,90 @@
 import streamlit as st
-import json
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
+import requests
+import json
 
-st.set_page_config(page_title="Uitjes Finder", layout="wide")
 st.title("🎯 Uitjes in je Omgeving")
 
-# Laad activiteiten data
-with open('activities.json', 'r', encoding='utf-8') as f:
-    activities = json.load(f)
+location = st.text_input("Voer je stad in:", "Amsterdam")
+activity_type = st.selectbox(
+    "Wat zoek je?",
+    ["restaurant", "museum", "park", "cafe", "library"]
+)
+radius = st.slider("Zoekradius (km)", 1, 50, 10)
 
-# Gebruiker voert locatie in
-col1, col2 = st.columns(2)
-with col1:
-    user_location = st.text_input("Voer je stad/adres in:")
-with col2:
-    radius = st.slider("Zoekradius (km)", 1, 50, 10)
-
-# Functie om coördinaten op te halen
-@st.cache_data
-def get_coordinates(location):
-    geolocator = Nominatim(user_agent="activities_finder")
+if location:
     try:
+        # Geocodeer locatie
+        geolocator = Nominatim(user_agent="activities_finder")
         loc = geolocator.geocode(location)
-        return (loc.latitude, loc.longitude)
-    except:
-        st.error("Locatie niet gevonden")
-        return None
-
-if user_location:
-    user_coords = get_coordinates(user_location)
-    
-    if user_coords:
-        # Filter activiteiten op afstand
-        nearby_activities = []
-        for activity in activities:
-            activity_coords = (activity['lat'], activity['lon'])
-            distance = geodesic(user_coords, activity_coords).kilometers
-            
-            if distance <= radius:
-                activity['distance'] = round(distance, 1)
-                nearby_activities.append(activity)
         
-        # Toon resultaten
-        if nearby_activities:
-            st.success(f"✅ {len(nearby_activities)} activiteiten gevonden!")
+        if loc:
+            st.success(f"📍 Gezocht in: {location}")
             
-            for activity in sorted(nearby_activities, key=lambda x: x['distance']):
-                with st.container(border=True):
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.subheader(activity['name'])
-                        st.write(f"📍 {activity['address']}")
-                        st.write(f"📝 {activity['description']}")
-                        if activity.get('url'):
-                            st.markdown(f"[Meer info →]({activity['url']})")
-                    with col2:
-                        st.metric("Afstand", f"{activity['distance']} km")
-        else:
-            st.info("Geen activiteiten gevonden binnen deze radius")
+            # Overpass API query voor OSM data
+            overpass_url = "http://overpass-api.de/api/interpreter"
+            
+            # Map activity types to OSM tags
+            osm_tags = {
+                "restaurant": "amenity=restaurant",
+                "museum": "tourism=museum",
+                "park": "leisure=park",
+                "cafe": "amenity=cafe",
+                "library": "amenity=library"
+            }
+            
+            query = f"""
+            [bbox:{loc.latitude-radius/111},{loc.longitude-radius/111},{loc.latitude+radius/111},{loc.longitude+radius/111}];
+            (
+              node[{osm_tags.get(activity_type, "tourism=attraction")}];
+              way[{osm_tags.get(activity_type, "tourism=attraction")}];
+            );
+            out center;
+            """
+            
+            response = requests.get(overpass_url, params={'data': query}, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                places = []
+                
+                for element in data.get('elements', []):
+                    if 'lat' in element and 'lon' in element:
+                        name = element['tags'].get('name', 'Onbekend')
+                        lat = element['lat']
+                        lng = element['lon']
+                        distance = geodesic((loc.latitude, loc.longitude), (lat, lng)).kilometers
+                        
+                        places.append({
+                            'name': name,
+                            'lat': lat,
+                            'lng': lng,
+                            'distance': round(distance, 1),
+                            'tags': element.get('tags', {})
+                        })
+                
+                places = sorted(places, key=lambda x: x['distance'])[:20]
+                
+                if places:
+                    st.write(f"✅ **{len(places)} {activity_type}s gevonden!**")
+                    
+                    for place in places:
+                        with st.container(border=True):
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.subheader(place['name'])
+                                st.write(f"📍 {place['lat']:.4f}, {place['lng']:.4f}")
+                                if 'phone' in place['tags']:
+                                    st.write(f"📞 {place['tags']['phone']}")
+                                if 'website' in place['tags']:
+                                    st.markdown(f"[Website →]({place['tags']['website']})")
+                            with col2:
+                                st.metric("Afstand", f"{place['distance']} km")
+                else:
+                    st.info("Geen resultaten gevonden")
+            else:
+                st.error("API fout bij ophalen gegevens")
+                
+    except Exception as e:
+        st.error(f"Fout: {str(e)}")
