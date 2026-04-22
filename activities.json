@@ -1,1 +1,22 @@
-
+[
+  {
+    "id": 1,
+    "name": "Museum X",
+    "address": "Straat 123, Amsterdam",
+    "lat": 52.3676,
+    "lon": 4.9041,
+    "description": "Interessant museum met moderne kunst",
+    "category": "cultuur",
+    "url": "https://example.com"
+  },
+  {
+    "id": 2,
+    "name": "Park Y",
+    "address": "Parkweg 45, Amsterdam",
+    "lat": 52.3700,
+    "lon": 4.8952,
+    "description": "Mooi park voor wandelingen",
+    "category": "natuur",
+    "url": "https://example.com"
+  }
+]
