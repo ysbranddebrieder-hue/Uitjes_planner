@@ -51,7 +51,7 @@ if st.button("🔍 Zoeken"):
             """
             
             # Overpass API call met retry
-            overpass_url = "https://overpass-api.de/api/interpreter"
+            overpass_url = "https://z.overpass-api.de/api/interpreter"
             max_retries = 3
             response = None
             
